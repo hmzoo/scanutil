@@ -2,12 +2,12 @@
   <v-app dark>
 
     <v-app-bar
-      :clipped-left="clipped"
       fixed
       app
     >
       <v-toolbar-title v-text="title" />
       <v-spacer />
+      <SocketInfo />
 
     </v-app-bar>
     <v-content>
@@ -21,7 +21,11 @@
 </template>
 
 <script>
+import SocketInfo from '~/components/SocketInfo.vue'
 export default {
+  components: {
+    SocketInfo
+  },
   data () {
     return {
       title: 'ScanUtil'

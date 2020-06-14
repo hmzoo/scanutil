@@ -21,11 +21,15 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 
 
 func Serve() {
-  hub := newHub()
+	  err,data := LoadCSV()
+    if(err != nil){
+			log.Fatal("no csv file")
+		}
+    hub := newHub()
   	go hub.run()
   	http.HandleFunc("/", serveHome)
   	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-  		serveWs(hub, w, r)
+  		serveWs(data,hub, w, r)
   	})
 	  log.Fatal(http.ListenAndServe("localhost:8080", nil))
 }

@@ -35,10 +35,16 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-type Msg struct {
+type ItemMsg struct {
   Id string `json:"id"`
   Tp string `json:"tp"`
-  Ct string `json:"ct"`
+  Item Item `json:"item"`
+}
+
+type DataMsg struct {
+  Id string `json:"id"`
+  Tp string `json:"tp"`
+  Data *Data `json:"data"`
 }
 
 // Client is a middleman between the websocket connection and the hub.
@@ -52,24 +58,49 @@ type Client struct {
 
 	// Buffered channel of outbound messages.
 	send chan []byte
+
+	data *Data
 }
 
-func (c *Client) process(data []byte) {
-  msg:= Msg{}
-  err := json.Unmarshal(data, &msg)
+func (c *Client) process(databytes []byte) {
+  msg:= ItemMsg{}
+  err := json.Unmarshal(databytes, &msg)
   if(err != nil) {
     return
   }
   msg.Id=c.id
   log.Println(msg)
-  b, err := json.Marshal(msg);
 
+ if(msg.Tp=="ADD"){
+	 c.data.AddItem(msg.Item)
+	 c.data.SaveCSV()
+ }
+
+  b, err := json.Marshal(msg);
   if err!=nil {
   log.Println(err)
   return
  }
-  
+
   c.hub.broadcast <- b
+}
+
+func (c *Client) sendData() {
+	msg := DataMsg{Id :c.id,Tp:"DATA",Data:c.data}
+	b, err := json.Marshal(msg);
+
+	if err!=nil {
+	log.Println(err)
+	return
+ }
+
+	if err := c.conn.WriteMessage(websocket.TextMessage, b); err != nil {
+        log.Println(err)
+        return
+    }
+
+
+
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -146,15 +177,16 @@ func (c *Client) writePump() {
 }
 
 // serveWs handles websocket requests from the peer.
-func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func serveWs(data *Data,hub *Hub, w http.ResponseWriter, r *http.Request) {
   upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	client := &Client{hub: hub, id:NewID(), conn: conn, send: make(chan []byte, 256)}
+	client := &Client{ data: data ,hub: hub, id:NewID(), conn: conn, send: make(chan []byte, 256)}
 	client.hub.register <- client
+	client.sendData()
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
